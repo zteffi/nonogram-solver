@@ -27,13 +27,11 @@ size_t binomial_coefficient(size_t n, size_t r){
 
 void print(const std::vector<size_t>& img)
 {
-
 	for (auto row: img)
 	{
-
-		std::cout << std::bitset<5>(row) << '\n';
+		std::cout << std::bitset<8>(row) << '\n';
 	}
-	std::cout << img.size()<< "------------\n";
+	std::cout << "------------\n";
 }
 
 bool validate(const std::vector<size_t>& candidate,
@@ -44,9 +42,9 @@ bool validate(const std::vector<size_t>& candidate,
 			col <<= 1;
 			col += ((1<<i)&r) >> i;
 		}
-		auto it = cols[i].rbegin();
+		auto it = cols[cols.size() - i - 1].rbegin();
 		uchar oneCount = 0;
-		for (;it != cols[i].rend(); it++) {
+		for (;it != cols[cols.size() - i - 1].rend(); it++) {
 			while (!(col % 2)) {
 				col >>= 1;
 				if (!col) {
@@ -66,22 +64,35 @@ bool validate(const std::vector<size_t>& candidate,
 	return true;
 }
 
-bool next_combination(std::vector<uchar>& comb, int n) {
-    int k = comb.size();
+
+std::vector<uchar> bars_to_composition(const std::vector<uchar>& bars, int n, int k) {
+    std::vector<uchar> comp(k);
+    comp[0] = bars[0];
+    for (int i = 1; i < k - 1; ++i) {
+        comp[i] = bars[i] - bars[i - 1] - 1;
+    }
+    comp[k - 1] = (n + k - 1) - 1 - bars.back();
+    return comp;
+}
+
+std::pair<bool, std::vector<uchar>> next_combination(std::vector<uchar>& bars, int n) {
+	if (n == 0) {
+		return {false, {0 , 0}}; //edgecase
+	}
+	int k = bars.size();
+	int total = n + k;
     for (int i = k - 1; i >= 0; --i) {
-        if (comb[i] < n - k) {
-            ++comb[i];
-            for (int j = i + 1; j < k; ++j) {
-                comb[j] = comb[j - 1] + 1;
-            }
-            return true;
+        if (bars[i] < total - k + i) {
+            ++bars[i];
+            for (int j = i + 1; j < k; ++j)
+                bars[j] = bars[j - 1] + 1;
+            return {true, bars_to_composition(bars, n, k + 1)};
         }
     }
-    return false;
+    std::iota(bars.begin(), bars.end(), 0);
+	return {false, bars_to_composition(bars, n-1, k + 1)};
 }
-
 }
-
 
 
 Solver::Solver(size_t width, size_t height, std::vector<std::vector<uchar>> cols, std::vector<std::vector<uchar>> rows)
@@ -101,6 +112,9 @@ void Solver::PrepareStates()
 	{
 		// stars and bars
 		auto bars = row.size();
+
+		// assignable blank spaces
+		// (first white space between colored spaces is not counted)
 		auto stars = _width -  std::accumulate(row.begin(), row.end(), bars-1);
 		auto combinations = binomial_coefficient(stars + bars, bars);
 		_combinations_and_stars_pairs.push_back({combinations, stars});
@@ -108,44 +122,41 @@ void Solver::PrepareStates()
 	}
  }
 
-
 void Solver::Solve()
 {
 	//bruteforce
 	size_t val = std::accumulate(_combinations_and_stars_pairs.begin(), _combinations_and_stars_pairs.end(), 1,
 		[](size_t acc, auto& b){ return acc* std::get<0>(b); }
 	);
-	std::vector<std::vector<uchar>> vec;
+	std::vector<std::vector<uchar>> bars;
 	for (auto row: _rows)
 	{
-		vec.push_back(std::vector<uchar>(row.size() + 1));
-		std::iota(vec.back().begin(), vec.back().end(), 0);
+		bars.push_back(std::vector<uchar>(row.size()));
+		std::iota(bars.back().begin(), bars.back().end(), 0);
 	}
 
 	std::cout << "Trying " << val << " times\n";
-	std::vector<size_t> img(_rows.size(), 0);
+	std::vector<size_t> img(_rows.	size(), 0);
 	for (size_t i = 0; i < val; i++) {
 
 		auto index = 0;
-		for (index = 0; index < vec.size(); index++)
+		for (index = 0; index < bars.size(); index++)
 		{
-			bool next = next_combination(vec[index], static_cast<int>(std::get<0>(_combinations_and_stars_pairs[index]))) && i > 0;
-			if (!next) {
-				std::iota(vec.back().begin(), vec.back().end(), 0);
-			}
+			auto [stop, whites] = next_combination(bars[index], std::get<1>(_combinations_and_stars_pairs[index]));
 			img[index] = 0;
-			for (auto j = _rows[index].size() - 1; j != std::numeric_limits<size_t>::max(); j--) {
-				img[index] |= (1<<_rows[index][j]) - 1;
-				size_t ws = 0;
-				if (j) {
-					ws = vec[index][j] - vec[index][j-1] +  _rows[index][j];
-				} else {
-					ws = vec[index][j];
-				}
-				img[index] <<= ws;
+			for (auto j = 0u; j < _rows[index].size(); j++) {
+				img[index] <<= _rows[index][j];
+				img[index] +=  (1 << _rows[index][j]) - 1;
+				img[index] <<= whites[j+1] + static_cast<uchar>(j + 1 < _rows[index].size());
+			}
+			if (stop && i != 0) {
+				break;
 			}
 		}
-		std::cout << i << ": "<< std::endl;
+		print(img);
+		if (!(i % 256 *1024)) {
+			std::cout << i << ": "<< std::endl;
+		}
 		if (validate(img, _cols)) {
 			std::cout << "Solution!\n";
 			print(img);
