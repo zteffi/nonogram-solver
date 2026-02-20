@@ -25,11 +25,15 @@ size_t binomial_coefficient(size_t n, size_t r){
     return sum;
 }
 
-void print(const std::vector<size_t>& img)
+void print(const std::vector<size_t>& img, size_t cols)
 {
 	for (auto row: img)
 	{
-		std::cout << std::bitset<8>(row) << '\n';
+		for (int i = 0; i < cols; i++) {
+			std::cout << ((row % 2) ? "##" : "__");
+			row >>= 1;
+		}
+		std::cout << '\n';
 	}
 	std::cout << "------------\n";
 }
@@ -76,7 +80,7 @@ std::vector<uchar> bars_to_composition(const std::vector<uchar>& bars, int n, in
 }
 
 std::pair<bool, std::vector<uchar>> next_combination(std::vector<uchar>& bars, int n) {
-	if (n == 0) {
+	if (n == 0 || bars.empty()) {
 		return {false, {0 , 0}}; //edgecase
 	}
 	int k = bars.size();
@@ -136,7 +140,7 @@ void Solver::Solve()
 	}
 
 	std::cout << "Trying " << val << " times\n";
-	std::vector<size_t> img(_rows.	size(), 0);
+	std::vector<size_t> img(_rows.size(), 0);
 	for (size_t i = 0; i < val; i++) {
 
 		auto index = 0;
@@ -153,13 +157,13 @@ void Solver::Solve()
 				break;
 			}
 		}
-		print(img);
-		if (!(i % 256 *1024)) {
-			std::cout << i << ": "<< std::endl;
+		if (!(i % (4 * 1024 *1024))) {
+			std::cout << i << " / " << val << std::endl;
 		}
 		if (validate(img, _cols)) {
 			std::cout << "Solution!\n";
-			print(img);
+
+			print(img, _cols.size());
 			return;
 		}
 
